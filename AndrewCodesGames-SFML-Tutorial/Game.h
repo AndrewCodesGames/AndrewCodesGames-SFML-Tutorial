@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Entity.h"
+
 #include <SFML/Graphics.hpp>
 #include <vector>
 
@@ -29,6 +31,12 @@ private:
 	void UpdatePlay();
 	void UpdateLevelEditor();
 
+	void UpdatePhysics();
+
+private:
+	void ProcessCollision(Entity& entity1, Entity& entity2);
+public:
+
 	void Draw();
 	void DrawLevelEditor();
 
@@ -46,9 +54,9 @@ private:
 	GameMode m_eGameMode;
 
 	// Play mode
-	sf::Sprite m_Player;
-	sf::Sprite m_Enemy;
-	sf::Sprite m_Axe;
+	Entity m_Player;
+	Entity m_Enemy;
+	Entity m_Axe;
 
 	sf::Texture m_PlayerTexture;
 	sf::Texture m_EnemyTexture;
@@ -57,7 +65,7 @@ private:
 	sf::Font m_Font;
 	sf::Text m_GameModeText;
 
-	sf::Vector2f m_vRequestedPlayerMovement;
+	sf::Vector2f m_vRequestedPlayerMovementDirection;
 	float m_fPlayerSpeed;
 
 	// Level Editor Mode
@@ -66,6 +74,7 @@ private:
 
 	sf::Texture m_TileMapTexture;
 
+	// TODO: these need to be entities
 	std::vector<sf::Sprite> m_TileOptions;
-	std::vector<sf::Sprite> m_Tiles;
+	std::vector<Entity> m_Tiles;
 };
