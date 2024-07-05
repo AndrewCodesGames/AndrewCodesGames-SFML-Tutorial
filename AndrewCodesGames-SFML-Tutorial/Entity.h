@@ -105,6 +105,11 @@ public:
 		return m_Sprite.getPosition();
 	}
 
+	sf::Vector2i GetClosestGridCoordiantes() const
+	{
+		return sf::Vector2i(GetPosition().x/160, GetPosition().y/160);
+	}
+
 	void Move(const sf::Vector2f& offset)
 	{
 		m_Sprite.move(offset);
@@ -120,9 +125,22 @@ public:
 		return m_PhysicsData;
 	}
 
+	void SetPathIndex(int index)
+	{
+		m_iPathIndex = index;
+	}
+
+	int GetPathIndex() const
+	{
+		return m_iPathIndex;
+	}
+
 private:
 	sf::Sprite m_Sprite;
 	PhysicsData m_PhysicsData;
+
+	// Stuff that should probably be moved somewhere so that it is exclusive to enemies
+	int m_iPathIndex;
 };
 
 #endif // ENTITY_H

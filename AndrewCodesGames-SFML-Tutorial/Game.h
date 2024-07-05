@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Entity.h"
+#include "TileOption.h"
 
 #include <SFML/Graphics.hpp>
 #include <vector>
@@ -23,6 +24,12 @@ public:
 		ScrollUp,
 		ScrollDown,
 		None
+	};
+
+	struct PathTile
+	{
+		const Entity* pCurrentTile;
+		const Entity* pNextTile;
 	};
 
 	void Run();
@@ -48,6 +55,10 @@ public:
 	void CreateTileAtPosition(const sf::Vector2f& position);
 	void DeleteTileAtPosition(const sf::Vector2f& position);
 
+	void ConstructPath();
+
+	std::vector<Entity>& GetListOfTiles(TileOption::TileType eTileType);
+
 private:
 	sf::RenderWindow m_Window;
 	sf::Time m_DeltaTime;
@@ -55,8 +66,11 @@ private:
 
 	// Play mode
 	Entity m_Player;
-	Entity m_Enemy;
 	Entity m_Axe;
+
+	Entity m_EnemyTemplate;
+
+	std::vector<Entity> m_Enemies;
 
 	sf::Texture m_PlayerTexture;
 	sf::Texture m_EnemyTexture;
@@ -74,7 +88,20 @@ private:
 
 	sf::Texture m_TileMapTexture;
 
-	// TODO: these need to be entities
-	std::vector<sf::Sprite> m_TileOptions;
-	std::vector<Entity> m_Tiles;
+	std::vector<TileOption> m_TileOptions;
+	std::vector<Entity> m_AestheticTiles;
+	std::vector<Entity> m_SpawnTiles;
+	std::vector<Entity> m_EndTiles;
+	std::vector<Entity> m_PathTiles;
+
+	bool m_bDrawPath;
+
+private:
+	// Pathfinding
+	typedef std::vector<PathTile> Path;
+
+	void VisitPathNeighbors(Path path, const sf::Vector2i& rEndCoords);
+	bool DoesPathContainCoordinates(const Path& path, const sf::Vector2i& coordinates);
+
+	std::vector<Path> m_Paths;
 };

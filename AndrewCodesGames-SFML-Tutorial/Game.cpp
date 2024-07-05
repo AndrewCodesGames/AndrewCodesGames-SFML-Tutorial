@@ -3,7 +3,8 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include "MathHelpers.h"
-
+#include <queue>
+#include <set>
 #include <algorithm>
 
 Game::Game()
@@ -14,8 +15,9 @@ Game::Game()
 	, m_eScrollWheelInput(None)
 	, m_iTileOptionIndex(0)
 	, m_Player(Entity::PhysicsData::Type::Dynamic)
-	, m_Enemy(Entity::PhysicsData::Type::Dynamic)
+	, m_EnemyTemplate(Entity::PhysicsData::Type::Dynamic)
 	, m_Axe(Entity::PhysicsData::Type::Static)
+	, m_bDrawPath(true)
 {
 	// Load the player texture
 	m_PlayerTexture.loadFromFile("Images/Player.png");
@@ -31,12 +33,11 @@ Game::Game()
 
 	// Do the same stuff for the enemy
 	m_EnemyTexture.loadFromFile("Images/Enemy.png");
-	m_Enemy.SetTexture(m_EnemyTexture);
-	m_Enemy.SetScale(sf::Vector2f(10, 10));
-	m_Enemy.SetPosition(sf::Vector2f(960, 540));
-	m_Enemy.SetOrigin(sf::Vector2f(8, 8));
-
-	m_Enemy.SetCirclePhysics(80.0f);
+	m_EnemyTemplate.SetTexture(m_EnemyTexture);
+	m_EnemyTemplate.SetScale(sf::Vector2f(5, 5));
+	m_EnemyTemplate.SetPosition(sf::Vector2f(960, 540));
+	m_EnemyTemplate.SetOrigin(sf::Vector2f(8, 8));
+	m_EnemyTemplate.SetCirclePhysics(40.0f);
 
 	// And for the axe
 	m_AxeTexture.loadFromFile("Images/Axe.png");
@@ -63,7 +64,34 @@ Game::Game()
 			tile.setTextureRect(sf::IntRect(x * 16, y * 16, 16, 16));
 			tile.setScale(sf::Vector2f(10, 10));
 			tile.setOrigin(sf::Vector2f(8, 8));
-			m_TileOptions.push_back(tile);
+
+			TileOption::TileType eTileType = TileOption::TileType::Null;
+
+			if (y == 0)
+			{
+				eTileType = TileOption::TileType::Aesthetic;
+			}
+			else
+			{
+				if (y == 1)
+				{
+					if (x == 0)
+					{
+						eTileType = TileOption::TileType::Spawn;
+					}
+					else if (x == 1)
+					{
+						eTileType = TileOption::TileType::End;
+					}
+					else if (x == 2)
+					{
+						eTileType = TileOption::TileType::Path;
+					}
+				}
+			}
+
+			TileOption& tileOption = m_TileOptions.emplace_back(eTileType);
+			tileOption.SetSprite(tile);
 		}
 	}
 }
@@ -110,30 +138,81 @@ void Game::UpdatePlay()
 	m_Axe.SetPosition(m_Player.GetPosition() + vPlayerToMouseNormalized * 160.0f);
 
 	// Did the axe hit the enemy?
-	//sf::Vector2f vAxeToEnemy = m_Enemy.getPosition() - m_Axe.getPosition();
+	//sf::Vector2f vAxeToEnemy = m_EnemyTemplate.getPosition() - m_Axe.getPosition();
 	//float fLengthFromAxeToEnemy = MathHelpers::Length(vAxeToEnemy);
 	//// If our axe "hit" the enemy, then move the enemy to a new random spot
 	//if (fLengthFromAxeToEnemy < 160.0f)
 	//{
 	//	// The axe has hit the enemy!
 	//	sf::Vector2f vNewPosition(std::rand() % 1920, std::rand() % 1080);
-	//	m_Enemy.setPosition(vNewPosition);
+	//	m_EnemyTemplate.setPosition(vNewPosition);
 	//}
 
-	// Have enemy move towards player
-	sf::Vector2f vEnemyToPlayer = m_Player.GetPosition() - m_Enemy.GetPosition();
-	vEnemyToPlayer = MathHelpers::Normalize(vEnemyToPlayer);
-	float fEnemySpeed = 50.0f;
+	const int iMaxEnemies = 30;
+	if (m_SpawnTiles.size() > 0 && !m_Paths.empty())
+	{
+		m_EnemyTemplate.SetPosition(m_SpawnTiles[0].GetPosition());
+		if (m_Enemies.size() < iMaxEnemies)
+		{
+			static float fSpawnTimer = 0.0f;
+			fSpawnTimer += m_DeltaTime.asSeconds();
+			if (fSpawnTimer > 1.0f)
+			{
+				// spawn enemy
+				Entity& newEnemy = m_Enemies.emplace_back(m_EnemyTemplate);
+				newEnemy.SetPathIndex(std::rand() % m_Paths.size());
+				fSpawnTimer = 0.0f;
+			}
+		}
+	}
 
-	// TODO: change this to be handled in physics
-	m_Enemy.SetVelocity(vEnemyToPlayer * fEnemySpeed);
+	for (int i = m_Enemies.size()-1; i >= 0; --i)
+	{
+		Entity& rEnemy = m_Enemies[i];
+		// Get the path that this enemy is on
+		Path& path = m_Paths[rEnemy.GetPathIndex()];
+		
+		// Find the the closest path tile to the enemy
+		PathTile* pClosestPathTile = nullptr;
+		float fClosestDistance = std::numeric_limits<float>::max();
+
+		for (PathTile& pathTile : path)
+		{
+			// Find the distance from the enemy to this path tile
+			sf::Vector2f vEnemyToPathTile = pathTile.pCurrentTile->GetPosition() - rEnemy.GetPosition();
+			float fDistance = MathHelpers::Length(vEnemyToPathTile);
+
+			if (fDistance < fClosestDistance)
+			{
+				fClosestDistance = fDistance;
+				pClosestPathTile = &pathTile;
+			}
+		}
+
+		// Find the next path tile
+		const Entity* pNextTile = pClosestPathTile->pNextTile;
+
+		if (!pNextTile || pNextTile->GetClosestGridCoordiantes() == m_EndTiles[0].GetClosestGridCoordiantes())
+		{
+			if (fClosestDistance < 40.0f)
+			{
+				m_Enemies.erase(m_Enemies.begin() + i);
+				continue;
+			}
+		}
+
+		float fEnemySpeed = 250.0f;
+		sf::Vector2f vEnemyToNextTile = pNextTile->GetPosition() - rEnemy.GetPosition();
+		vEnemyToNextTile = MathHelpers::Normalize(vEnemyToNextTile);
+		rEnemy.SetVelocity(vEnemyToNextTile * fEnemySpeed);
+	}
 
 	UpdatePhysics();
 }
 
 void Game::UpdateLevelEditor()
 {
-
+	m_Enemies.clear();
 }
 
 void Game::UpdatePhysics()
@@ -141,9 +220,14 @@ void Game::UpdatePhysics()
 	std::vector<Entity*> allEntities;
 
 	allEntities.push_back(&m_Player);
-	allEntities.push_back(&m_Enemy);
 	allEntities.push_back(&m_Axe);
-	for (Entity& entity : m_Tiles)
+
+	for (Entity& enemy : m_Enemies)
+	{
+		allEntities.push_back(&enemy);
+	}
+
+	for (Entity& entity : m_AestheticTiles)
 	{
 		allEntities.push_back(&entity);
 	}
@@ -344,13 +428,17 @@ void Game::Draw()
 	m_Window.clear();
 
 	// Draw all of the tiles
-	for (const Entity& entity : m_Tiles)
+	for (const Entity& entity : m_AestheticTiles)
 	{
 		m_Window.draw(entity);
 	}
 
 	// Add everything we want to draw, in order that we want it drawn.
-	m_Window.draw(m_Enemy);
+	for (const Entity& enemie : m_Enemies)
+	{
+		m_Window.draw(enemie);
+	}
+
 	m_Window.draw(m_Player);
 	m_Window.draw(m_Axe);
 
@@ -374,6 +462,27 @@ void Game::DrawLevelEditor()
 {
 	sf::Vector2f vMousePosition = (sf::Vector2f)sf::Mouse::getPosition(m_Window);
 	m_TileOptions[m_iTileOptionIndex].setPosition(vMousePosition);
+
+	TileOption::TileType eTileType = m_TileOptions[m_iTileOptionIndex].GetTyleType();
+
+	// Draw spawn tiles
+	if (m_bDrawPath)
+	{
+		for (const Entity& entity : m_PathTiles)
+		{
+			m_Window.draw(entity);
+		}
+
+		for (const Entity& entity : m_SpawnTiles)
+		{
+			m_Window.draw(entity);
+		}
+
+		for (const Entity& entity : m_EndTiles)
+		{
+			m_Window.draw(entity);
+		}
+	}
 
 	m_Window.draw(m_TileOptions[m_iTileOptionIndex]);
 }
@@ -401,6 +510,20 @@ void Game::HandleInput()
 	else
 	{
 		bTWasPressedLastUpdate = false;
+	}
+
+	static bool bYWasPressedLastUpdate = false;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Y))
+	{
+		if (!bYWasPressedLastUpdate)
+		{
+			m_bDrawPath = !m_bDrawPath;
+		}
+		bYWasPressedLastUpdate = true;
+	}
+	else
+	{
+		bYWasPressedLastUpdate = false;
 	}
 
 	sf::Event event;
@@ -507,42 +630,156 @@ void Game::CreateTileAtPosition(const sf::Vector2f& position)
 	int x = position.x / 160;
 	int y = position.y / 160;
 
-	sf::Sprite tile = m_TileOptions[m_iTileOptionIndex];
+	TileOption::TileType eTileType = m_TileOptions[m_iTileOptionIndex].GetTyleType();
+	if (eTileType == TileOption::TileType::Null)
+	{
+		return;
+	}
+
+	std::vector<Entity>& listOfTiles = GetListOfTiles(eTileType);
+
+	if (eTileType == TileOption::TileType::Spawn || eTileType == TileOption::TileType::End)
+	{
+		// We only ever want 1 spawn or end tile (for now)
+		listOfTiles.clear();
+	}
+
+	sf::Sprite tile = m_TileOptions[m_iTileOptionIndex].getSprite();
 	tile.setPosition(x * 160 + 80, y * 160 + 80);
 
-	for (int i = 0; i < m_Tiles.size(); ++i)
+	for (int i = 0; i < listOfTiles.size(); ++i)
 	{
 		// check if there is already a tile at this position
-		if (m_Tiles[i].GetPosition() == tile.getPosition())
+		if (listOfTiles[i].GetPosition() == tile.getPosition())
 		{
 			// if there is, delete it
-			m_Tiles[i] = m_Tiles.back();
-			m_Tiles.pop_back();
+			listOfTiles[i] = listOfTiles.back();
+			listOfTiles.pop_back();
 			break;
 		}
 	}
 
-	Entity& newTile = m_Tiles.emplace_back(Entity::PhysicsData::Type::Static);
+	Entity& newTile = listOfTiles.emplace_back(Entity::PhysicsData::Type::Static);
 	newTile.SetSprite(tile);
 	newTile.SetRectanglePhysics(160, 160);
+
+	ConstructPath();
 }
 
 void Game::DeleteTileAtPosition(const sf::Vector2f& position)
 {
+	TileOption::TileType eTileType = m_TileOptions[m_iTileOptionIndex].GetTyleType();
+	if (eTileType == TileOption::TileType::Null)
+	{
+		return;
+	}
+
+	std::vector<Entity>& listOfTiles = GetListOfTiles(eTileType);
+
 	int x = position.x / 160;
 	int y = position.y / 160;
 
 	sf::Vector2f tilePosition(x * 160 + 80, y * 160 + 80);
 
-	for (int i = 0; i < m_Tiles.size(); ++i)
+	for (int i = 0; i < listOfTiles.size(); ++i)
 	{
 		// check if there is already a tile at this position
-		if (m_Tiles[i].GetPosition() == tilePosition)
+		if (listOfTiles[i].GetPosition() == tilePosition)
 		{
 			// if there is, delete it
-			m_Tiles[i] = m_Tiles.back();
-			m_Tiles.pop_back();
+			listOfTiles[i] = listOfTiles.back();
+			listOfTiles.pop_back();
 			break;
 		}
 	}
+}
+
+void Game::ConstructPath()
+{
+	m_Paths.clear();
+
+	if (m_SpawnTiles.empty() || m_EndTiles.empty())
+	{
+		return;
+	}
+
+	Path newPath;
+	PathTile& start = newPath.emplace_back();
+	start.pCurrentTile = &m_SpawnTiles[0];
+
+	sf::Vector2i vEndCoords = m_EndTiles[0].GetClosestGridCoordiantes();
+
+	VisitPathNeighbors(newPath, vEndCoords);
+}
+
+void Game::VisitPathNeighbors(Path path, const sf::Vector2i& rEndCoords)
+{
+	const sf::Vector2i vCurrentTilePosition = path.back().pCurrentTile->GetClosestGridCoordiantes();
+
+	const sf::Vector2i vNorthCoords(vCurrentTilePosition.x, vCurrentTilePosition.y - 1);
+	const sf::Vector2i vEastCoords(vCurrentTilePosition.x + 1, vCurrentTilePosition.y);
+	const sf::Vector2i vSouthCoords(vCurrentTilePosition.x, vCurrentTilePosition.y + 1);
+	const sf::Vector2i vWestCoords(vCurrentTilePosition.x - 1, vCurrentTilePosition.y);
+
+	const std::vector<Entity>& pathTiles = GetListOfTiles(TileOption::TileType::Path);
+
+	for (const Entity& pathTile : pathTiles)
+	{
+		const sf::Vector2i vPathTileCoords = pathTile.GetClosestGridCoordiantes();
+
+		// If the path already contains this tile, skip it
+		if (DoesPathContainCoordinates(path, vPathTileCoords))
+		{
+			continue;
+		}
+
+		// Doesn't contain the coordinates, check if it's a neighbor
+		if (vPathTileCoords == vNorthCoords || vPathTileCoords == vEastCoords || vPathTileCoords == vSouthCoords || vPathTileCoords == vWestCoords)
+		{
+			// you're a neighbor, and we havent visisted you yet
+			Path newPath = path;
+			newPath.back().pNextTile = &pathTile;
+			PathTile& newTile = newPath.emplace_back();
+			newTile.pCurrentTile = &pathTile;
+
+			if (vPathTileCoords == rEndCoords)
+			{
+				m_Paths.push_back(newPath);
+			}
+			else
+			{
+				VisitPathNeighbors(newPath, rEndCoords);
+			}
+		}
+	}
+}
+
+bool Game::DoesPathContainCoordinates(const Path& path, const sf::Vector2i& coordinates)
+{
+	for (const PathTile& pathTile : path)
+	{
+		if (pathTile.pCurrentTile->GetClosestGridCoordiantes() == coordinates)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+std::vector<Entity>& Game::GetListOfTiles(TileOption::TileType eTileType)
+{
+	switch (eTileType)
+	{
+	case TileOption::TileType::Aesthetic:
+		return m_AestheticTiles;
+	case TileOption::TileType::Spawn:
+		return m_SpawnTiles;
+	case TileOption::TileType::End:
+		return m_EndTiles;
+	case TileOption::TileType::Path:
+		return m_PathTiles;
+	}
+
+	return m_AestheticTiles;
 }
