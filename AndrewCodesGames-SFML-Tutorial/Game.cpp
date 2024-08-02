@@ -191,8 +191,12 @@ void Game::UpdatePlay()
 
 		// Find the next path tile
 		const Entity* pNextTile = pClosestPathTile->pNextTile;
+		if (!pNextTile)
+		{
+			pNextTile = pClosestPathTile->pCurrentTile;
+		}
 
-		if (!pNextTile || pNextTile->GetClosestGridCoordiantes() == m_EndTiles[0].GetClosestGridCoordiantes())
+		if (pNextTile->GetClosestGridCoordiantes() == m_EndTiles[0].GetClosestGridCoordiantes())
 		{
 			if (fClosestDistance < 40.0f)
 			{
@@ -222,6 +226,9 @@ void Game::UpdatePhysics()
 	allEntities.push_back(&m_Player);
 	allEntities.push_back(&m_Axe);
 
+	const float fMaxDeltaTime = 0.1f;
+	const float fDeltaTime = std::min(m_DeltaTime.asSeconds(), fMaxDeltaTime);
+
 	for (Entity& enemy : m_Enemies)
 	{
 		allEntities.push_back(&enemy);
@@ -237,7 +244,7 @@ void Game::UpdatePhysics()
 		// If the entity is dynamic, move it
 		if (entity->GetPhysicsData().m_eType == Entity::PhysicsData::Type::Dynamic)
 		{
-			entity->Move(entity->GetPhysicsData().m_vVelocity * m_DeltaTime.asSeconds());
+			entity->Move(entity->GetPhysicsData().m_vVelocity * fDeltaTime);
 
 			// Check for collisions
 			for (Entity* otherEntity : allEntities)
