@@ -13,7 +13,7 @@ The purpose is to improve your C++ and game development skills in a realistic mo
 - Design choices (code is the canvas for design!).
 
 ## Getting Started
-[YouTube video with instructions]()
+[YouTube video with instructions](https://youtu.be/y5iRTDhiK_A)
 ### Instructions
 - Create a new visual studio project from this repository. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo?view=vs-2022)
 - Change to one of the assignment branches. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/version-control/git-fetch-pull-sync?view=vs-2022)
