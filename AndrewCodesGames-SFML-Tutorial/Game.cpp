@@ -7,29 +7,31 @@
 #include <set>
 #include <algorithm>
 
+#include <cassert>
+
 Game::Game()
 	: m_Window(sf::VideoMode(1920, 1080), "SFML Tutorial")
 	, m_eGameMode(Play)
-	, m_vRequestedPlayerMovementDirection(0.0f, 0.0f)
-	, m_fPlayerSpeed(100.0f)
 	, m_eScrollWheelInput(None)
 	, m_iTileOptionIndex(0)
-	, m_Player(Entity::PhysicsData::Type::Dynamic)
+	, m_TowerTemplate(Entity::PhysicsData::Type::Static)
+	, m_AxeTemplate(Entity::PhysicsData::Type::Dynamic)
 	, m_EnemyTemplate(Entity::PhysicsData::Type::Dynamic)
-	, m_Axe(Entity::PhysicsData::Type::Static)
 	, m_bDrawPath(true)
+	, m_iPlayerHealth(10)
+	, m_iPlayerGold(10)
+	, m_fTimeInPlayMode(0.0f)
 {
-	// Load the player texture
-	m_PlayerTexture.loadFromFile("Images/Player.png");
+	// Load the tower texture
+	m_TowerTexture.loadFromFile("Images/Player.png");
 	// Create a sprite with the player texture
-	m_Player.SetTexture(m_PlayerTexture);
+	m_TowerTemplate.SetTexture(m_TowerTexture);
 	// Our texture is pretty small compared to the screen size, so we scale it up.
-	m_Player.SetScale(sf::Vector2f(10, 10));
+	m_TowerTemplate.SetScale(sf::Vector2f(5, 5));
 	// The default origin for a sprite is the top left hand corner, but it's easier to think about moving stuff when it's centered :)
-	m_Player.SetOrigin(sf::Vector2f(8, 8));
-
-	m_Player.SetCirclePhysics(80.0f);
-	m_Player.AddEntityToIgnore(&m_Axe);
+	m_TowerTemplate.SetOrigin(sf::Vector2f(8, 8));
+	m_TowerTemplate.SetCirclePhysics(40.0f);
+	m_TowerTemplate.GetPhysicsDataNonConst().SetLayers(Entity::PhysicsData::Layer::Tower);
 
 	// Do the same stuff for the enemy
 	m_EnemyTexture.loadFromFile("Images/Enemy.png");
@@ -38,20 +40,32 @@ Game::Game()
 	m_EnemyTemplate.SetPosition(sf::Vector2f(960, 540));
 	m_EnemyTemplate.SetOrigin(sf::Vector2f(8, 8));
 	m_EnemyTemplate.SetCirclePhysics(40.0f);
+	m_EnemyTemplate.GetPhysicsDataNonConst().SetLayers(Entity::PhysicsData::Layer::Enemy);
+	m_EnemyTemplate.SetHealth(3);
 
 	// And for the axe
 	m_AxeTexture.loadFromFile("Images/Axe.png");
-	m_Axe.SetTexture(m_AxeTexture);
-	m_Axe.SetScale(sf::Vector2f(10, 10));
-	m_Axe.SetOrigin(sf::Vector2f(8, 8));
-
-	m_Axe.SetCirclePhysics(80.0f);
+	m_AxeTemplate.SetTexture(m_AxeTexture);
+	m_AxeTemplate.SetScale(sf::Vector2f(5, 5));
+	m_AxeTemplate.SetOrigin(sf::Vector2f(8, 8));
+	m_AxeTemplate.SetCirclePhysics(40.0f);
+	m_AxeTemplate.GetPhysicsDataNonConst().SetLayers(Entity::PhysicsData::Layer::Projectile);
+	m_AxeTemplate.GetPhysicsDataNonConst().SetLayersToIgnore(Entity::PhysicsData::Layer::Tower | Entity::PhysicsData::Layer::Projectile);
 
 	m_Font.loadFromFile("Fonts/Kreon-Medium.ttf");
 
 	m_GameModeText.setPosition(sf::Vector2f(960, 100));
 	m_GameModeText.setString("Play Mode");
 	m_GameModeText.setFont(m_Font);
+
+	m_PlayerText.setPosition(sf::Vector2f(1500, 100));
+	m_PlayerText.setString("Player");
+	m_PlayerText.setFont(m_Font);
+
+	m_GameOverText.setPosition(sf::Vector2f(960, 540));
+	m_GameOverText.setString("Game Over");
+	m_GameOverText.setFont(m_Font);
+	m_GameOverText.setCharacterSize(100);
 
 	m_TileMapTexture.loadFromFile("Images/TileMap.png");
 
@@ -126,14 +140,14 @@ void Game::Run()
 
 void Game::UpdatePlay()
 {
-	// Set the player's velocity to be in the direction that the player wants to move
-	m_Player.SetVelocity(m_vRequestedPlayerMovementDirection * m_fPlayerSpeed);
+	m_fTimeInPlayMode += m_DeltaTime.asSeconds();
+
+	if (m_iPlayerHealth <= 0)
+	{
+		return;
+	}
 
 	// Set the axe's position to be towards the mouse position
-	sf::Vector2f vMousePosition = (sf::Vector2f)sf::Mouse::getPosition(m_Window);
-	sf::Vector2f vPlayerToMouse = vMousePosition - m_Player.GetPosition();
-	sf::Vector2f vPlayerToMouseNormalized = MathHelpers::Normalize(vPlayerToMouse);
-	m_Axe.SetPosition(m_Player.GetPosition() + vPlayerToMouseNormalized * 160.0f);
 
 	// Did the axe hit the enemy?
 	//sf::Vector2f vAxeToEnemy = m_EnemyTemplate.getPosition() - m_Axe.getPosition();
@@ -146,6 +160,9 @@ void Game::UpdatePlay()
 	//	m_EnemyTemplate.setPosition(vNewPosition);
 	//}
 
+	UpdateTowers();
+	UpdateAxes();
+
 	const int iMaxEnemies = 30;
 	if (m_SpawnTiles.size() > 0 && !m_Paths.empty())
 	{
@@ -153,7 +170,10 @@ void Game::UpdatePlay()
 		if (m_Enemies.size() < iMaxEnemies)
 		{
 			static float fSpawnTimer = 0.0f;
-			fSpawnTimer += m_DeltaTime.asSeconds();
+			int fSpawnTimerMultiplier = m_fTimeInPlayMode / 5;
+			float fSpawnRate = 1.0f + fSpawnTimerMultiplier / 10.0f;
+			// After 1 minute, the spawn rate will be 2.2f
+			fSpawnTimer += m_DeltaTime.asSeconds()* fSpawnRate;
 			if (fSpawnTimer > 1.0f)
 			{
 				// spawn enemy
@@ -164,12 +184,12 @@ void Game::UpdatePlay()
 		}
 	}
 
-	for (int i = m_Enemies.size()-1; i >= 0; --i)
+	for (int i = m_Enemies.size() - 1; i >= 0; --i)
 	{
 		Entity& rEnemy = m_Enemies[i];
 		// Get the path that this enemy is on
 		Path& path = m_Paths[rEnemy.GetPathIndex()];
-		
+
 		// Find the the closest path tile to the enemy
 		PathTile* pClosestPathTile = nullptr;
 		float fClosestDistance = std::numeric_limits<float>::max();
@@ -200,6 +220,7 @@ void Game::UpdatePlay()
 			if (fDistanceToEnd < 40.0f)
 			{
 				m_Enemies.erase(m_Enemies.begin() + i);
+				m_iPlayerHealth -= 1;
 				continue;
 			}
 		}
@@ -211,31 +232,132 @@ void Game::UpdatePlay()
 	}
 
 	UpdatePhysics();
+
+	CheckForDeletionRequests();
+}
+
+void Game::UpdateTowers()
+{
+	for (Entity& tower : m_Towers)
+	{
+		// Check if it's time to throw an axe
+		tower.m_fAttackTimer -= m_DeltaTime.asSeconds();
+		if (tower.m_fAttackTimer > 0.0f)
+		{
+			// Not ready to attack yet
+			continue;
+		}
+
+		// Find the nearest enemy
+		Entity* pNearestEnemy = nullptr;
+		float fNearestDistance = std::numeric_limits<float>::max();
+		for (Entity& enemy : m_Enemies)
+		{
+			sf::Vector2f vTowerToEnemy = enemy.GetPosition() - tower.GetPosition();
+			float fDistance = MathHelpers::Length(vTowerToEnemy);
+			if (fDistance < fNearestDistance)
+			{
+				fNearestDistance = fDistance;
+				pNearestEnemy = &enemy;
+			}
+		}
+
+		if (!pNearestEnemy)
+		{
+			// No enemies to attack
+			continue;
+		}
+
+		// Rotate the tower to face the enemy
+		sf::Vector2f vTowerToEnemy = pNearestEnemy->GetPosition() - tower.GetPosition();
+		float fAngle = MathHelpers::Angle(vTowerToEnemy);
+
+		tower.GetSpriteNonConst().setRotation(fAngle);
+
+		// Create an axe and set its velocity
+		Entity& newAxe = m_Axes.emplace_back(m_AxeTemplate);
+		newAxe.SetPosition(tower.GetPosition());
+		vTowerToEnemy = MathHelpers::Normalize(vTowerToEnemy);
+		newAxe.SetVelocity(vTowerToEnemy * 500.0f);
+
+		// Reset their axe throwing timer
+		tower.m_fAttackTimer = 1.0f;
+	}
+}
+
+void Game::UpdateAxes()
+{
+	for (Entity& axe : m_Axes)
+	{
+		axe.m_fAxeTimer -= m_DeltaTime.asSeconds();
+		const float fAxeRotationSpeed = 360.0f;
+		axe.GetSpriteNonConst().rotate(fAxeRotationSpeed *m_DeltaTime.asSeconds());
+		if (axe.m_fAxeTimer <= 0.0f)
+		{
+			axe.RequestDeletion();
+		}
+	}
+}
+
+void Game::CheckForDeletionRequests()
+{
+	// Check for deletion requests
+	for (int i = m_Axes.size() - 1; i >= 0; --i)
+	{
+		Entity& axe = m_Axes[i];
+		if (axe.IsDeletionRequested())
+		{
+			m_Axes.erase(m_Axes.begin() + i);
+		}
+	}
+
+	for (int i = m_Enemies.size() - 1; i >= 0; --i)
+	{
+		Entity& enemy = m_Enemies[i];
+		if (enemy.IsDeletionRequested())
+		{
+			m_Enemies.erase(m_Enemies.begin() + i);
+			m_iPlayerGold += 1;
+		}
+	}
 }
 
 void Game::UpdateLevelEditor()
 {
 	m_Enemies.clear();
+	m_Axes.clear();
+	m_Towers.clear();
+
+	m_iPlayerHealth = 10;
+	m_iPlayerGold = 10;
+	m_fTimeInPlayMode = 0.0f;
 }
 
 void Game::UpdatePhysics()
 {
-	std::vector<Entity*> allEntities;
-
-	allEntities.push_back(&m_Player);
-	allEntities.push_back(&m_Axe);
-
 	const float fMaxDeltaTime = 0.1f;
 	const float fDeltaTime = std::min(m_DeltaTime.asSeconds(), fMaxDeltaTime);
+
+	std::vector<Entity*> allEntities;
+
+	for (Entity& tower : m_Towers)
+	{
+		allEntities.push_back(&tower);
+	}
 
 	for (Entity& enemy : m_Enemies)
 	{
 		allEntities.push_back(&enemy);
 	}
 
-	for (Entity& entity : m_AestheticTiles)
+	for (Entity& axe : m_Axes)
 	{
-		allEntities.push_back(&entity);
+		allEntities.push_back(&axe);
+	}
+
+	for (Entity* entity : allEntities)
+	{
+		entity->GetPhysicsDataNonConst().ClearCollisions();
 	}
 
 	for (Entity* entity : allEntities)
@@ -243,7 +365,8 @@ void Game::UpdatePhysics()
 		// If the entity is dynamic, move it
 		if (entity->GetPhysicsData().m_eType == Entity::PhysicsData::Type::Dynamic)
 		{
-			entity->Move(entity->GetPhysicsData().m_vVelocity * fDeltaTime);
+			entity->Move(entity->GetPhysicsData().m_vVelocity * fDeltaTime + entity->GetPhysicsData().m_vImpulse);
+			entity->GetPhysicsDataNonConst().ClearImpulse();
 
 			// Check for collisions
 			for (Entity* otherEntity : allEntities)
@@ -259,6 +382,15 @@ void Game::UpdatePhysics()
 					continue;
 				}
 
+				if (!entity->GetPhysicsDataNonConst().HasCollidedThisUpdate(otherEntity) && IsColliding(*entity, *otherEntity))
+				{
+					entity->OnCollision(*otherEntity);
+					otherEntity->OnCollision(*entity);
+
+					entity->GetPhysicsDataNonConst().AddEntityCollision(otherEntity);
+					otherEntity->GetPhysicsDataNonConst().AddEntityCollision(entity);
+				}
+
 				ProcessCollision(*entity, *otherEntity);
 			}
 		}
@@ -267,6 +399,8 @@ void Game::UpdatePhysics()
 
 void Game::ProcessCollision(Entity& entity1, Entity& entity2)
 {
+	assert(entity1.GetPhysicsData().m_eType != Entity::PhysicsData::Type::Static);
+
 	if (entity1.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Circle)
 	{
 		// We're a circle
@@ -428,6 +562,76 @@ void Game::ProcessCollision(Entity& entity1, Entity& entity2)
 	}
 }
 
+bool Game::IsColliding(const Entity& entity1, const Entity& entity2)
+{
+	if (entity1.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Circle)
+	{
+		// We're a circle
+		if (entity2.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Circle)
+		{
+			// We're both circles
+			const sf::Vector2f vEntity1ToEntity2 = entity2.GetPosition() - entity1.GetPosition();
+			const float fDistanceBetweenEntities = MathHelpers::Length(vEntity1ToEntity2);
+			const float fSumOfRadii = entity1.GetPhysicsData().m_fRadius + entity2.GetPhysicsData().m_fRadius;
+			if (fDistanceBetweenEntities < fSumOfRadii)
+			{
+				return true;
+			}
+		}
+		else if (entity2.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Rectangle)
+		{
+			// We're a circle, they're a rectangle
+			float fClosestX = std::clamp(entity1.GetPosition().x, entity2.GetPosition().x - entity2.GetPhysicsData().m_fWidth / 2, entity2.GetPosition().x + entity2.GetPhysicsData().m_fWidth / 2);
+			float fClosestY = std::clamp(entity1.GetPosition().y, entity2.GetPosition().y - entity2.GetPhysicsData().m_fHeight / 2, entity2.GetPosition().y + entity2.GetPhysicsData().m_fHeight / 2);
+
+			sf::Vector2f vClosestPoint(fClosestX, fClosestY);
+			sf::Vector2f vCircleToClosestPoint = vClosestPoint - entity1.GetPosition();
+			float fDistance = MathHelpers::Length(vCircleToClosestPoint);
+
+			if (fDistance < entity1.GetPhysicsData().m_fRadius)
+			{
+				return true;
+			}
+		}
+	}
+	else if (entity1.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Rectangle)
+	{
+		// We're a rectangle
+		if (entity2.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Circle)
+		{
+			// We're a rectangle, they're a circle
+			float fClosestX = std::clamp(entity2.GetPosition().x, entity1.GetPosition().x - entity1.GetPhysicsData().m_fWidth / 2, entity1.GetPosition().x + entity1.GetPhysicsData().m_fWidth / 2);
+			float fClosestY = std::clamp(entity2.GetPosition().y, entity1.GetPosition().y - entity1.GetPhysicsData().m_fHeight / 2, entity1.GetPosition().y + entity1.GetPhysicsData().m_fHeight / 2);
+
+			sf::Vector2f vClosestPoint(fClosestX, fClosestY);
+			sf::Vector2f vCircleToClosestPoint = vClosestPoint - entity2.GetPosition();
+			float fDistance = MathHelpers::Length(vCircleToClosestPoint);
+
+			if (fDistance < entity2.GetPhysicsData().m_fRadius)
+			{
+				return true;
+			}
+
+		}
+		else if (entity2.GetPhysicsData().m_eShape == Entity::PhysicsData::Shape::Rectangle)
+		{
+			// We're both rectangles
+			float fDistanceX = std::abs(entity1.GetPosition().x - entity2.GetPosition().x);
+			float fDistanceY = std::abs(entity1.GetPosition().y - entity2.GetPosition().y);
+
+			float fOverlapX = entity1.GetPhysicsData().m_fWidth / 2 + entity2.GetPhysicsData().m_fWidth / 2 - fDistanceX;
+			float fOverlapY = entity1.GetPhysicsData().m_fHeight / 2 + entity2.GetPhysicsData().m_fHeight / 2 - fDistanceY;
+
+			if (fOverlapX > 0 && fOverlapY > 0)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void Game::Draw()
 {
 	// Erases everything that was drawn last frame
@@ -487,14 +691,44 @@ void Game::DrawLevelEditor()
 
 void Game::DrawPlay()
 {
+	sf::Vector2f vMousePosition = (sf::Vector2f)sf::Mouse::getPosition(m_Window);
+	m_TowerTemplate.SetPosition(vMousePosition);
+
+	if (CanPlaceTowerAtPosition(vMousePosition))
+	{
+		m_TowerTemplate.SetColor(sf::Color::Green);
+	}
+	else
+	{
+		m_TowerTemplate.SetColor(sf::Color::Red);
+	}
+
 	// Add everything we want to draw, in order that we want it drawn.
 	for (const Entity& enemie : m_Enemies)
 	{
 		m_Window.draw(enemie);
 	}
 
-	m_Window.draw(m_Player);
-	m_Window.draw(m_Axe);
+	for (const Entity& tower : m_Towers)
+	{
+		m_Window.draw(tower);
+	}
+
+	for (const Entity& axe : m_Axes)
+	{
+		m_Window.draw(axe);
+	}
+
+	m_Window.draw(m_TowerTemplate);
+
+	if (m_iPlayerHealth <= 0)
+	{
+		// draw the game over text
+		m_Window.draw(m_GameOverText);
+	}
+
+	m_PlayerText.setString("Player Health: " + std::to_string(m_iPlayerHealth) + "\nPlayer Gold: " + std::to_string(m_iPlayerGold));
+	m_Window.draw(m_PlayerText);
 }
 
 void Game::HandleInput()
@@ -576,27 +810,18 @@ void Game::HandleInput()
 
 void Game::HandlePlayInput()
 {
-	m_vRequestedPlayerMovementDirection = sf::Vector2f(0.0f, 0.0f);
-	// Gather the player's input here
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
 	{
-		m_vRequestedPlayerMovementDirection += sf::Vector2f(0.0f, -1.0f);
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-	{
-		m_vRequestedPlayerMovementDirection += sf::Vector2f(1.0f, 0.0f);
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-	{
-		m_vRequestedPlayerMovementDirection += sf::Vector2f(0.0f, 1.0f);
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-	{
-		m_vRequestedPlayerMovementDirection += sf::Vector2f(-1.0f, 0.0f);
-	}
+		sf::Vector2f vMousePosition = (sf::Vector2f)sf::Mouse::getPosition(m_Window);
 
-	// Normalize the player's movement so that they don't move faster when moving diagonally
-	m_vRequestedPlayerMovementDirection = MathHelpers::Normalize(m_vRequestedPlayerMovementDirection);
+		if (m_iPlayerGold >= 3)
+		{
+			if (CreateTowerAtPosition(vMousePosition))
+			{
+				m_iPlayerGold -= 3;
+			}
+		}
+	}
 }
 
 void Game::HandleLevelEditorInput()
@@ -801,4 +1026,64 @@ std::vector<Entity>& Game::GetListOfTiles(TileOption::TileType eTileType)
 	}
 
 	return m_AestheticTiles;
+}
+
+bool Game::CreateTowerAtPosition(const sf::Vector2f& position)
+{
+	if (CanPlaceTowerAtPosition(position))
+	{
+		Entity newTower = m_TowerTemplate;
+		newTower.SetColor(sf::Color::White);
+		m_Towers.push_back(newTower);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool Game::CanPlaceTowerAtPosition(const sf::Vector2f& position)
+{
+	// Add all the conditions where I'm not allowed to place a tower
+
+	// If I'm not on a brick, I can't place a tower
+	sf::IntRect brickRect(0, 0, 16, 16);
+	std::vector<Entity>& listOfTiles = GetListOfTiles(TileOption::TileType::Aesthetic);
+	bool bIsOnBrick = false;
+
+	Entity copyOfTowerWithRadiusOf1 = m_TowerTemplate;
+	copyOfTowerWithRadiusOf1.SetCirclePhysics(1.0f);
+
+	for (const Entity& tile : listOfTiles)
+	{
+		const sf::Sprite& rTileSprite = tile.GetSprite();
+		// Get the sprites texture rect
+		sf::IntRect tileRect = rTileSprite.getTextureRect();
+		if (tileRect != brickRect)
+		{
+			continue;
+		}
+
+		if (IsColliding(tile, copyOfTowerWithRadiusOf1))
+		{
+			bIsOnBrick = true;
+			break;
+		}
+	}
+
+	if (!bIsOnBrick)
+	{
+		return false;
+	}
+
+	// If I'm on top of another tower, I can't place a tower
+	for (const Entity& tower : m_Towers)
+	{
+		if (IsColliding(tower, m_TowerTemplate))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
