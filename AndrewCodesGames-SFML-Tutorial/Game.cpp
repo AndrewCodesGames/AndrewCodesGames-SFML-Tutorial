@@ -126,9 +126,7 @@ void Game::Run()
 
 void Game::UpdatePlay()
 {
-	// Move the player's sprite
-	// TODO: change this to be handled in physics
-	///m_Player.move(m_vRequestedPlayerMovementDirection * m_DeltaTime.asSeconds() * m_fPlayerSpeed);
+	// Set the player's velocity to be in the direction that the player wants to move
 	m_Player.SetVelocity(m_vRequestedPlayerMovementDirection * m_fPlayerSpeed);
 
 	// Set the axe's position to be towards the mouse position
@@ -196,9 +194,10 @@ void Game::UpdatePlay()
 			pNextTile = pClosestPathTile->pCurrentTile;
 		}
 
-		if (pNextTile->GetClosestGridCoordiantes() == m_EndTiles[0].GetClosestGridCoordiantes())
+		if (pNextTile->GetClosestGridCoordinates() == m_EndTiles[0].GetClosestGridCoordinates())
 		{
-			if (fClosestDistance < 40.0f)
+			const float fDistanceToEnd = MathHelpers::Length(pNextTile->GetPosition() - rEnemy.GetPosition());
+			if (fDistanceToEnd < 40.0f)
 			{
 				m_Enemies.erase(m_Enemies.begin() + i);
 				continue;
@@ -440,21 +439,13 @@ void Game::Draw()
 		m_Window.draw(entity);
 	}
 
-	// Add everything we want to draw, in order that we want it drawn.
-	for (const Entity& enemie : m_Enemies)
-	{
-		m_Window.draw(enemie);
-	}
-
-	m_Window.draw(m_Player);
-	m_Window.draw(m_Axe);
-
 	// Draw words on the screens
 	m_Window.draw(m_GameModeText);
 
 	switch (m_eGameMode)
 	{
 	case Play:
+		DrawPlay();
 		break;
 	case LevelEditor:
 		DrawLevelEditor();
@@ -492,6 +483,18 @@ void Game::DrawLevelEditor()
 	}
 
 	m_Window.draw(m_TileOptions[m_iTileOptionIndex]);
+}
+
+void Game::DrawPlay()
+{
+	// Add everything we want to draw, in order that we want it drawn.
+	for (const Entity& enemie : m_Enemies)
+	{
+		m_Window.draw(enemie);
+	}
+
+	m_Window.draw(m_Player);
+	m_Window.draw(m_Axe);
 }
 
 void Game::HandleInput()
@@ -659,10 +662,8 @@ void Game::CreateTileAtPosition(const sf::Vector2f& position)
 		// check if there is already a tile at this position
 		if (listOfTiles[i].GetPosition() == tile.getPosition())
 		{
-			// if there is, delete it
-			listOfTiles[i] = listOfTiles.back();
-			listOfTiles.pop_back();
-			break;
+			// If there's already a tile at the position we want to put one, then we don't need to do anything!
+			return;
 		}
 	}
 
@@ -714,25 +715,39 @@ void Game::ConstructPath()
 	PathTile& start = newPath.emplace_back();
 	start.pCurrentTile = &m_SpawnTiles[0];
 
-	sf::Vector2i vEndCoords = m_EndTiles[0].GetClosestGridCoordiantes();
+	sf::Vector2i vEndCoords = m_EndTiles[0].GetClosestGridCoordinates();
 
 	VisitPathNeighbors(newPath, vEndCoords);
 }
 
 void Game::VisitPathNeighbors(Path path, const sf::Vector2i& rEndCoords)
 {
-	const sf::Vector2i vCurrentTilePosition = path.back().pCurrentTile->GetClosestGridCoordiantes();
+	const sf::Vector2i vCurrentTilePosition = path.back().pCurrentTile->GetClosestGridCoordinates();
 
 	const sf::Vector2i vNorthCoords(vCurrentTilePosition.x, vCurrentTilePosition.y - 1);
 	const sf::Vector2i vEastCoords(vCurrentTilePosition.x + 1, vCurrentTilePosition.y);
 	const sf::Vector2i vSouthCoords(vCurrentTilePosition.x, vCurrentTilePosition.y + 1);
 	const sf::Vector2i vWestCoords(vCurrentTilePosition.x - 1, vCurrentTilePosition.y);
 
+	if (rEndCoords == vNorthCoords || rEndCoords == vEastCoords || rEndCoords == vSouthCoords || rEndCoords == vWestCoords)
+	{
+		// Set the last tile in our current path to point to the next tile
+		path.back().pNextTile = &m_EndTiles[0];
+		// Add the next tile, and set it.
+		PathTile& newTile = path.emplace_back();
+		newTile.pCurrentTile = &m_EndTiles[0];
+		m_Paths.push_back(path);
+
+		// If any of our paths are next to the end tile, they should probably go straight to end and terminate.
+		// If we didn't return here, we could move around the end tile before going into it.
+		return;
+	}
+
 	const std::vector<Entity>& pathTiles = GetListOfTiles(TileOption::TileType::Path);
 
 	for (const Entity& pathTile : pathTiles)
 	{
-		const sf::Vector2i vPathTileCoords = pathTile.GetClosestGridCoordiantes();
+		const sf::Vector2i vPathTileCoords = pathTile.GetClosestGridCoordinates();
 
 		// If the path already contains this tile, skip it
 		if (DoesPathContainCoordinates(path, vPathTileCoords))
@@ -744,19 +759,16 @@ void Game::VisitPathNeighbors(Path path, const sf::Vector2i& rEndCoords)
 		if (vPathTileCoords == vNorthCoords || vPathTileCoords == vEastCoords || vPathTileCoords == vSouthCoords || vPathTileCoords == vWestCoords)
 		{
 			// you're a neighbor, and we havent visisted you yet
+
+			// Create a new path (so that we can find multiple paths recursively)
 			Path newPath = path;
+			// Set the last tile in our current path to point to the next tile
 			newPath.back().pNextTile = &pathTile;
+			// Add the next tile, and set it.
 			PathTile& newTile = newPath.emplace_back();
 			newTile.pCurrentTile = &pathTile;
 
-			if (vPathTileCoords == rEndCoords)
-			{
-				m_Paths.push_back(newPath);
-			}
-			else
-			{
-				VisitPathNeighbors(newPath, rEndCoords);
-			}
+			VisitPathNeighbors(newPath, rEndCoords);
 		}
 	}
 }
@@ -765,7 +777,7 @@ bool Game::DoesPathContainCoordinates(const Path& path, const sf::Vector2i& coor
 {
 	for (const PathTile& pathTile : path)
 	{
-		if (pathTile.pCurrentTile->GetClosestGridCoordiantes() == coordinates)
+		if (pathTile.pCurrentTile->GetClosestGridCoordinates() == coordinates)
 		{
 			return true;
 		}

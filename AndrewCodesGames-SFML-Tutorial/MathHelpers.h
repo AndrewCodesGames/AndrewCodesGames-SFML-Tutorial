@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MATH_HELPERS_H
+#define MATH_HELPERS_H
 
 #include <SFML/Graphics.hpp>
 
@@ -24,3 +25,5 @@ namespace MathHelpers
         return vNormalizedVector;
     }
 }
+
+#endif // MATH_HELPERS_H

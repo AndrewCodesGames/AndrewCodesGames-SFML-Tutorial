@@ -105,7 +105,7 @@ public:
 		return m_Sprite.getPosition();
 	}
 
-	sf::Vector2i GetClosestGridCoordiantes() const
+	sf::Vector2i GetClosestGridCoordinates() const
 	{
 		return sf::Vector2i(GetPosition().x/160, GetPosition().y/160);
 	}

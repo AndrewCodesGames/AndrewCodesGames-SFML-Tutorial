@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GAME_H
+#define GAME_H
 
 #include "Entity.h"
 #include "TileOption.h"
@@ -42,9 +43,9 @@ private:
 
 private:
 	void ProcessCollision(Entity& entity1, Entity& entity2);
-public:
 
 	void Draw();
+	void DrawPlay();
 	void DrawLevelEditor();
 
 	void HandleInput();
@@ -105,3 +106,5 @@ private:
 
 	std::vector<Path> m_Paths;
 };
+
+#endif // GAME_H
