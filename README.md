@@ -1,36 +1,19 @@
 # Explanation
-This branch is for a [YouTube](https://www.youtube.com/@AndrewCodesGames) video series, where, starting from this branch, you are to fullfill the requests from your producer on a video game project. Additionally, I will also do this assignment myself and post a video showing my thoughts/coding as I progress through it.
+This is the **master** branch for a [YouTube]() video series, where, starting from one of the [assignment branches](https://github.com/AndrewCodesGames/AndrewCodesGames-SFML-Tutorial/tree/Assignment1), you are to fulfill the request from your producer on a mock video game project. Additionally, I will complete these assignments myself and post a video of me coding and talking through a solution.
 
-# Assignment 1 - Email From Producer
+## What's the purpose of this?
+The purpose is to improve your C++ and game development skills in a realistic mock-environment. As a *real* video game developer, you would be working on an existing code base and fullfilling requests from your producer.
 
-Hey Andrew,
+### Things you'll encounter along the way
+- Bugs in the existing code base.
+- Requests that can be interpreted in various ways.
+- Code architecture choices.
+- Design choices (code is the canvas for design!).
 
-Nice work on setting up a basic level editor and enemy movement. Next we’d like to add the option for the player to put down towers. These towers should throw axes at enemies as they approach. Here’s a list of some specific requirements:
-
-## **Tower Placement**
-- Only allow tower placement on the “brick” looking tiles, no towers  in the enemies path.
-- Towers should not be allowed to overlap each other.
-- The player should see a “preview” of their placement, with some indication of whether that placement is valid or not.
-
-## **Tower Behaviour**
-- Towers should throw axes at the nearest enemy.
-  - (bonus) we’d like the axes to spin as they fly through the air.
-- Towers should face the enemy as they throw the axe.
-
-## **Gameplay**
-- The player should start with 10 gold and 10 lives.
-- The player should lose 1 life every time an enemy reaches the end of their path.
-- When the player reaches 0 life, the game ends.
-- Towers should cost the player 3 gold to purchase.
-- Axes should deal 1 point of damage to the enemy and disappear once they’re hit.
-  - (bonus) allow axes to persist once they hit an enemy, but keep them “stuck” on them.
-- Enemies should have 3 health, and should disappear once their health reaches 0.
-- When an axe hits an enemy, it should knock the enemy back in the direction of the hit.
-- When an enemy dies the player should gain 1 gold.
-- Enemies should spawn faster over time.
-
-If you have any questions, please reach out!
-
-Best,
-Producer
-
+## Getting Started
+[YouTube video with instructions]()
+### Instructions
+- Create a new visual studio project from this repository. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo?view=vs-2022)
+- Change to one of the assignment branches. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/version-control/git-fetch-pull-sync?view=vs-2022)
+- Read the email from your producer in the README of that branch.
+- Implement the requests.
