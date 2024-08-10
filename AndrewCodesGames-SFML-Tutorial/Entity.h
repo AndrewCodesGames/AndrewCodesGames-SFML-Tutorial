@@ -237,14 +237,7 @@ public:
 		m_iHealth = health;
 	}
 
-	void DealDamage(int damage)
-	{
-		m_iHealth -= damage;
-		if (m_iHealth <= 0)
-		{
-			m_bDeletionRequested = true;
-		}
-	}
+	void DealDamage(int damage);
 
 	bool IsDeletionRequested() const
 	{

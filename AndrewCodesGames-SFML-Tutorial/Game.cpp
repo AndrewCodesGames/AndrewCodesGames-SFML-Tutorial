@@ -9,6 +9,8 @@
 
 #include <cassert>
 
+#include "DamageTextManager.h"
+
 Game::Game()
 	: m_Window(sf::VideoMode(1920, 1080), "SFML Tutorial")
 	, m_eGameMode(Play)
@@ -146,6 +148,8 @@ void Game::UpdatePlay()
 	{
 		return;
 	}
+
+	DamageTextManager::GetInstanceNonConst().Update(m_DeltaTime);
 
 	// Set the axe's position to be towards the mouse position
 
@@ -718,6 +722,8 @@ void Game::DrawPlay()
 	{
 		m_Window.draw(axe);
 	}
+
+	DamageTextManager::GetInstanceConst().Draw(m_Window);
 
 	m_Window.draw(m_TowerTemplate);
 

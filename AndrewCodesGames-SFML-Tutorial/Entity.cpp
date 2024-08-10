@@ -1,6 +1,8 @@
 #include "Entity.h"
 #include "MathHelpers.h"
 
+#include "DamageTextManager.h"
+
 Entity::Entity(PhysicsData::Type ePhysicsType)
 	: m_bDeletionRequested(false)
 	, m_fAxeTimer(3.0f)
@@ -28,3 +30,14 @@ void Entity::OnCollision(Entity& otherEntity)
 		}
 	}
 }
+
+void Entity::DealDamage(int damage)
+{
+	m_iHealth -= damage;
+	DamageTextManager::GetInstanceNonConst().AddDamageText(damage, GetPosition());
+	if (m_iHealth <= 0)
+	{
+		m_bDeletionRequested = true;
+	}
+}
+
