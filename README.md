@@ -1,21 +1,24 @@
 # Explanation
-This is the **master** branch for a [YouTube](https://youtu.be/y5iRTDhiK_A) video series, where, starting from one of the [assignment branches](https://github.com/AndrewCodesGames/AndrewCodesGames-SFML-Tutorial/tree/Assignment1), you are to fulfill the request from your producer on a mock video game project. Additionally, I will complete these assignments myself and post a video of me coding and talking through a solution.
+This branch is for a [YouTube](https://www.youtube.com/@AndrewCodesGames) video series, where, starting from this branch, you are to fullfill the requests from your producer on a video game project. Additionally, I will also do this assignment myself and post a video showing my thoughts/coding as I progress through it.
 
-***Important*** - This branch will always be up to date with the solution from the latest assignment. If you want to do one of the assignments yourself, you will need to follow the instructions below to sync to one of the assignment branches, which only contain the changes from previous assignments.
+# Assignment 3 - Email From Producer
 
-## What's the purpose of this?
-The purpose is to improve your C++ and game development skills in a realistic mock-environment. As a *real* video game developer, you would be working on an existing code base and fullfilling requests from your producer.
+Hey Andrew,
 
-### Things you'll encounter along the way
-- Bugs in the existing code base.
-- Requests that can be interpreted in various ways.
-- Code architecture choices.
-- Design choices (code is the canvas for design!).
+Nice work on the damage text. We'd now like to continue revising the core game loop. Instead of using a life/level system, we'd like to try out a sort of endless/idle tower defense mode.
 
-## Getting Started
-[YouTube video with instructions](https://youtu.be/y5iRTDhiK_A)
-### Instructions
-- Create a new visual studio project from this repository. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo?view=vs-2022)
-- Change to one of the assignment branches. [Microsoft Docs](https://learn.microsoft.com/en-us/visualstudio/version-control/git-fetch-pull-sync?view=vs-2022)
-- Read the email from your producer in the README of that branch.
-- Implement the requests.
+This game mode will increase in difficulty just as the game does currently, but will decrease in difficulty whenever the player would lose life. The idea here is to keep the game's difficulty relative to the current strength of the player's towers. Our lead designer said "think cookie-clicker, but instead of clicking cookies, you're playing tower defense".
+
+Some details below for the first iteration.
+
+## **Endless Mode**
+- We'd like to be able to visualize the currently difficulty level. This can just be a number for this first iteration.
+- Whenever the player takes damage, the difficulty level should decrease.
+- The difficulty level should increase on a set interval, just as it does now.
+- (bonus) it would also be nice to see how much gold the player is earning per second, as some indication of how well they are doing.
+
+If you have any questions, please reach out!
+
+Best,
+Producer
+
