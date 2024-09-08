@@ -68,6 +68,7 @@ private:
 	// Play functions
 	bool CreateTowerAtPosition(const sf::Vector2f& position);
 	bool CanPlaceTowerAtPosition(const sf::Vector2f& position);
+	void AddGold(int gold);
 
 private:
 	sf::RenderWindow m_Window;
@@ -111,7 +112,11 @@ private:
 	// Gameplay variables
 	int m_iPlayerHealth;
 	int m_iPlayerGold;
+	int m_iGoldGainedThisUpdate;
 	float m_fTimeInPlayMode;
+	float m_fDifficulty;
+	float m_fGoldPerSecond;
+	float m_fGoldPerSecondTimer;
 
 private:
 	// Pathfinding

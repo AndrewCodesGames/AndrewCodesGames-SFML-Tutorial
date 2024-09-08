@@ -22,7 +22,11 @@ Game::Game()
 	, m_bDrawPath(true)
 	, m_iPlayerHealth(10)
 	, m_iPlayerGold(10)
+	, m_iGoldGainedThisUpdate(0)
 	, m_fTimeInPlayMode(0.0f)
+	, m_fDifficulty(1.0f)
+	, m_fGoldPerSecond(0.0f)
+	, m_fGoldPerSecondTimer(0.0f)
 {
 	// Load the tower texture
 	m_TowerTexture.loadFromFile("Images/Player.png");
@@ -143,6 +147,7 @@ void Game::Run()
 void Game::UpdatePlay()
 {
 	m_fTimeInPlayMode += m_DeltaTime.asSeconds();
+	m_fDifficulty += m_DeltaTime.asSeconds() / 10.0f;
 
 	if (m_iPlayerHealth <= 0)
 	{
@@ -174,10 +179,9 @@ void Game::UpdatePlay()
 		if (m_Enemies.size() < iMaxEnemies)
 		{
 			static float fSpawnTimer = 0.0f;
-			int fSpawnTimerMultiplier = m_fTimeInPlayMode / 5;
-			float fSpawnRate = 1.0f + fSpawnTimerMultiplier / 10.0f;
+			float fSpawnRate = m_fDifficulty;
 			// After 1 minute, the spawn rate will be 2.2f
-			fSpawnTimer += m_DeltaTime.asSeconds()* fSpawnRate;
+			fSpawnTimer += m_DeltaTime.asSeconds() * fSpawnRate;
 			if (fSpawnTimer > 1.0f)
 			{
 				// spawn enemy
@@ -224,7 +228,8 @@ void Game::UpdatePlay()
 			if (fDistanceToEnd < 40.0f)
 			{
 				m_Enemies.erase(m_Enemies.begin() + i);
-				m_iPlayerHealth -= 1;
+				//m_iPlayerHealth -= 1;
+				m_fDifficulty *= 0.9f;
 				continue;
 			}
 		}
@@ -236,8 +241,15 @@ void Game::UpdatePlay()
 	}
 
 	UpdatePhysics();
-
 	CheckForDeletionRequests();
+
+	m_fGoldPerSecondTimer += m_DeltaTime.asSeconds();
+	if (m_fGoldPerSecondTimer > 0.1f)
+	{
+		m_fGoldPerSecond = m_fGoldPerSecond * 0.9f + 0.1f * (float)m_iGoldGainedThisUpdate / m_fGoldPerSecondTimer;
+		m_fGoldPerSecondTimer = 0.0f;
+		m_iGoldGainedThisUpdate = 0;
+	}
 }
 
 void Game::UpdateTowers()
@@ -295,7 +307,7 @@ void Game::UpdateAxes()
 	{
 		axe.m_fAxeTimer -= m_DeltaTime.asSeconds();
 		const float fAxeRotationSpeed = 360.0f;
-		axe.GetSpriteNonConst().rotate(fAxeRotationSpeed *m_DeltaTime.asSeconds());
+		axe.GetSpriteNonConst().rotate(fAxeRotationSpeed * m_DeltaTime.asSeconds());
 		if (axe.m_fAxeTimer <= 0.0f)
 		{
 			axe.RequestDeletion();
@@ -321,20 +333,26 @@ void Game::CheckForDeletionRequests()
 		if (enemy.IsDeletionRequested())
 		{
 			m_Enemies.erase(m_Enemies.begin() + i);
-			m_iPlayerGold += 1;
+			//m_iPlayerGold += 1;
+			AddGold(1);
 		}
 	}
 }
 
 void Game::UpdateLevelEditor()
 {
+	// This should probably happen once in some sort of "on enter" function for play mode.
 	m_Enemies.clear();
 	m_Axes.clear();
 	m_Towers.clear();
 
 	m_iPlayerHealth = 10;
 	m_iPlayerGold = 10;
+	m_iGoldGainedThisUpdate = 0;
 	m_fTimeInPlayMode = 0.0f;
+	m_fDifficulty = 1.0f;
+	m_fGoldPerSecond = 0.0f;
+	m_fGoldPerSecondTimer = 0.0f;
 }
 
 void Game::UpdatePhysics()
@@ -733,7 +751,9 @@ void Game::DrawPlay()
 		m_Window.draw(m_GameOverText);
 	}
 
-	m_PlayerText.setString("Player Health: " + std::to_string(m_iPlayerHealth) + "\nPlayer Gold: " + std::to_string(m_iPlayerGold));
+	m_PlayerText.setString("Difficulty: " + std::to_string(m_fDifficulty) +
+		"\nPlayer Gold: " + std::to_string(m_iPlayerGold) +
+		"\nGold per second: " + std::to_string(m_fGoldPerSecond));
 	m_Window.draw(m_PlayerText);
 }
 
@@ -1092,4 +1112,10 @@ bool Game::CanPlaceTowerAtPosition(const sf::Vector2f& position)
 	}
 
 	return true;
+}
+
+void Game::AddGold(int gold)
+{
+	m_iPlayerGold += gold;
+	m_iGoldGainedThisUpdate += gold;
 }
